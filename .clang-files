@@ -1,0 +1,5 @@
+kern/env.c
+kern/kdebug.c
+kern/syscall.c
+kern/trap.c
+lib/libmain.c
