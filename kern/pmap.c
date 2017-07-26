@@ -538,6 +538,7 @@ page_insert(pde_t *pgdir, struct PageInfo *pp, void *va, int perm)
         *pt_entry_p = page2pa(pp) | perm | PTE_P;
 
 	return 0;
+
 }
 
 //
