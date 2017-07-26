@@ -123,11 +123,11 @@ check_bc(void)
 	flush_block(diskaddr(1));
 	assert(va_is_mapped(diskaddr(1)));
 	assert(!va_is_dirty(diskaddr(1)));
-        cprintf("1111111111111111111\n");
+
 	// clear it out
 	sys_page_unmap(0, diskaddr(1));
 	assert(!va_is_mapped(diskaddr(1)));
-        cprintf("2222222222222222222222222222\n");
+
 	// read it back in
 	assert(strcmp(diskaddr(1), "OOPS!\n") == 0);
 
