@@ -183,6 +183,7 @@ trap_init_percpu(void)
 	// user space on that CPU.
 	//
 	// LAB 4: Your code here:
+
         int cpu_id = thiscpu->cpu_id;
         
 	// Setup a TSS so that we get the right stack
@@ -254,6 +255,7 @@ trap_dispatch(struct Trapframe *tf)
 {
 	// Handle processor exceptions.
 	// LAB 3: Your code here.
+
         if (tf->tf_trapno == T_BRKPT) {
                 monitor(tf);
                 return;
@@ -289,6 +291,10 @@ trap_dispatch(struct Trapframe *tf)
 		sched_yield();
 		return;
 	}
+
+	// Handle keyboard and serial interrupts.
+	// LAB 5: Your code here.
+
 
 	// Unexpected trap: The user process or the kernel has a bug.
 	print_trapframe(tf);
@@ -326,7 +332,9 @@ trap(struct Trapframe *tf)
 		// Acquire the big kernel lock before doing any
 		// serious kernel work.
 		// LAB 4: Your code here.
+
                 lock_kernel();
+
 		assert(curenv);
 
 		// Garbage collect if current enviroment is a zombie
@@ -372,8 +380,10 @@ page_fault_handler(struct Trapframe *tf)
 	// Handle kernel-mode page faults.
 
 	// LAB 3: Your code here.
+
         //chequeo los 2 bits mas bajos de tf_cs
         if ((tf->tf_cs & 0x3) == 0) panic("Kernel page fault!");
+
 
 	// We've already handled kernel-mode exceptions, so if we get here,
 	// the page fault happened in user mode.
@@ -386,6 +396,7 @@ page_fault_handler(struct Trapframe *tf)
 	// we branch to the page fault upcall recursively, pushing another
 	// page fault stack frame on top of the user exception stack.
 	//
+
 	// The trap handler needs one word of scratch space at the top of the
 	// trap-time stack in order to return.  In the non-recursive case, we
 	// don't have to worry about this because the top of the regular user
@@ -393,6 +404,16 @@ page_fault_handler(struct Trapframe *tf)
 	// an extra word between the current top of the exception stack and
 	// the new stack frame because the exception stack _is_ the trap-time
 	// stack.
+
+	// It is convenient for our code which returns from a page fault
+	// (lib/pfentry.S) to have one word of scratch space at the top of the
+	// trap-time stack; it allows us to more easily restore the eip/esp. In
+	// the non-recursive case, we don't have to worry about this because
+	// the top of the regular user stack is free.  In the recursive case,
+	// this means we have to leave an extra word between the current top of
+	// the exception stack and the new stack frame because the exception
+	// stack _is_ the trap-time stack.
+
 	//
 	// If there's no page fault upcall, the environment didn't allocate a
 	// page for its exception stack or can't write to it, or the exception
@@ -407,6 +428,7 @@ page_fault_handler(struct Trapframe *tf)
 	//   (the 'tf' variable points at 'curenv->env_tf').
 
 	// LAB 4: Your code here.
+
         if (curenv->env_pgfault_upcall) {
 		struct UTrapframe *u_tf;
 

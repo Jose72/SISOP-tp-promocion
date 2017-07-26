@@ -86,9 +86,11 @@ TRAPHANDLER_NOEC(irq15, 47)
 
 handl48: TRAPHANDLER_NOEC(syscll, 48)
 
+
 /*
  * Lab 3: Your code here for _alltraps
  */
+
 
 .globl _alltraps
 _alltraps:

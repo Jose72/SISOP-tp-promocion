@@ -116,6 +116,7 @@ env_init(void)
 {
 	// Set up envs array
 	// LAB 3: Your code here.
+
         // empiezo desde atras por el orden
         for (int i = NENV-1 ; i >= 0; --i) {
 		envs[i].env_id = 0;
@@ -185,6 +186,7 @@ env_setup_vm(struct Env *e)
 	//    - The functions in kern/pmap.h are handy.
 
 	// LAB 3: Your code here.
+
         p->pp_ref++; //incremento ref
         e->env_pgdir = page2kva(p); // es un kernel virtual addres
 	memcpy(e->env_pgdir, kern_pgdir, PGSIZE); 
@@ -257,6 +259,7 @@ env_alloc(struct Env **newenv_store, envid_t parent_id)
 	// Enable interrupts while in user mode.
 	// LAB 4: Your code here.
 
+
         e->env_tf.tf_eflags |= FL_IF;
 
 	// Clear the page fault handler until user installs one.
@@ -270,6 +273,7 @@ env_alloc(struct Env **newenv_store, envid_t parent_id)
 	*newenv_store = e;
 
 	cprintf("[%08x] new env %08x\n", curenv ? curenv->env_id : 0, e->env_id);
+
 	return 0;
 }
 
@@ -359,6 +363,7 @@ load_icode(struct Env *e, uint8_t *binary)
 	//  What?  (See env_run() and env_pop_tf() below.)
 
 	// LAB 3: Your code here.
+
 	struct Elf *elfHeader = (struct Elf *)binary;
 
 	// Cambiar CR3 para poder utilizar memcpy()
@@ -381,11 +386,13 @@ load_icode(struct Env *e, uint8_t *binary)
 	// at virtual address USTACKTOP - PGSIZE.
 
 	// LAB 3: Your code here.
+
 	e->env_tf.tf_eip = elfHeader->e_entry;
 	region_alloc(e, (void *) (USTACKTOP - PGSIZE), PGSIZE);
 
 	// Restaurar CR3
 	lcr3(PADDR(kern_pgdir));
+
 }
 
 //
@@ -399,6 +406,7 @@ void
 env_create(uint8_t *binary, enum EnvType type)
 {
 	// LAB 3: Your code here.
+
 	struct Env *newEnv;
 	int error = env_alloc(&newEnv,0);
 	if (error < 0) {
@@ -406,6 +414,11 @@ env_create(uint8_t *binary, enum EnvType type)
 	}
 	load_icode(newEnv, binary);
 	newEnv->env_type = type;
+
+	// If this is the file server (type == ENV_TYPE_FS) give it I/O
+	// privileges.
+	// LAB 5: Your code here.
+
 }
 
 //
@@ -425,6 +438,7 @@ env_free(struct Env *e)
 		lcr3(PADDR(kern_pgdir));
 
 	// Note the environment's demise.
+
 	cprintf("[%08x] free env %08x\n", curenv ? curenv->env_id : 0, e->env_id);
 
 	// Flush all mapped pages in the user portion of the address space
@@ -436,6 +450,7 @@ env_free(struct Env *e)
 
 		// find the pa and va of the page table
 		pa = PTE_ADDR(e->env_pgdir[pdeno]);
+
 		pt = (pte_t *) KADDR(pa);            
 
 		// unmap all PTEs in this page table
@@ -536,6 +551,7 @@ env_run(struct Env *e)
 	//	e->env_tf to sensible values.
 
 	// LAB 3: Your code here.
+
 	if (curenv && curenv->env_status == ENV_RUNNING) {
 		curenv->env_status = ENV_RUNNABLE;
 	}
@@ -548,4 +564,5 @@ env_run(struct Env *e)
         unlock_kernel();
 
 	env_pop_tf(&e->env_tf);         
+
 }

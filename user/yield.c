@@ -6,7 +6,6 @@ void
 umain(int argc, char **argv)
 {
 	int i;
-  
         cprintf("Hello, I am environment %08x, cpu %d.\n", thisenv->env_id, thisenv->env_cpunum);
         for (i = 0; i < 5; i++) {
                 sys_yield();
@@ -14,5 +13,5 @@ umain(int argc, char **argv)
                 thisenv->env_id, i, thisenv->env_cpunum);
         }
         cprintf("All done in environment %08x.\n", thisenv->env_id);
-   
+
 }
