@@ -79,8 +79,6 @@ dup_or_share(envid_t dstenv, void *va, int perm)
 {
 	int error;
 
-       
-
         //direccion de I/O , hacer return, no hay que mapear de nuevo
         if ((perm & PTE_PCD) || (PTE_PWT & perm ) || (PTE_MAPPED & perm )) {     
                 return 0;
@@ -88,16 +86,19 @@ dup_or_share(envid_t dstenv, void *va, int perm)
 
         perm = perm & PTE_SYSCALL;
 
+
+        //si es PTE_SHARE
+        if ((perm & PTE_SHARE)) {
+                error = sys_page_map(0, va, dstenv, va, PTE_SYSCALL);
+		if (error) {
+			panic("dup_or_share - sys_page_map without W perm: %e", error);		
+		}
+                return 0;
+        } 
+        
+
         //si es escritura
 	if ((perm & PTE_W)) {
-                /*
-		error = sys_page_alloc(dstenv, 0, perm);
-		if (error) 
-			panic("dup_or_share - sys_page_alloc: %e", error);
-		error = sys_page_map(0, va, dstenv, 0, perm);
-		if (error)
-			panic("dup_or_share - sys_page_map with W perm: %e", error);	
-                */
                 
                 //COPIA DEL DUPPAGE DE DUMBFORK
 
@@ -137,6 +138,8 @@ fork_v0(void)
 	uint8_t *addr;
 	int r;
 
+        //set_pgfault_handler(pgfault);
+
 	envid = sys_exofork();
 	if (envid < 0)
 		panic("sys_exofork: %e", envid);
@@ -154,6 +157,11 @@ fork_v0(void)
     	        }
         }
 
+        /*
+        if (sys_env_set_pgfault_upcall(envid, thisenv->env_pgfault_upcall)){
+                panic("fork: cannot set pgfault upcall");
+        }
+        */
 
         if (sys_env_set_status(envid, ENV_RUNNABLE)) {
                 panic("fork: cannot set env status");
