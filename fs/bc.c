@@ -103,7 +103,7 @@ flush_block(void *addr)
                 panic("flush_block: ide_write: %e", r);
         }
 
-        if ((r = sys_page_map(0, addr, 0, blkaddr, PTE_SYSCALL)) < 0){
+        if ((r = sys_page_map(0, blkaddr, 0, blkaddr, PTE_SYSCALL)) < 0){
                 panic("flush_block: sys_page_map: %e", r);
         }
 }
