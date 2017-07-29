@@ -26,6 +26,16 @@ pgfault(struct UTrapframe *utf)
 
 	// LAB 4: Your code here.
 
+        if(!(err & FEC_WR)) {
+		panic("pgfault, access not write");
+	}
+
+        pte_t pte = uvpt[PGNUM(addr)];
+
+	if(!(pte & (PTE_U | PTE_P | PTE_COW))){
+                panic("pgfault, page not copy-on-write");                
+        }
+
 	// Allocate a new page, map it at a temporary location (PFTEMP),
 	// copy the data from the old page to the new page, then move the new
 	// page to the old page's address.
@@ -33,8 +43,23 @@ pgfault(struct UTrapframe *utf)
 	//   You should make three system calls.
 
 	// LAB 4: Your code here.
+        //panic("pgfault not implemented");
 
-	panic("pgfault not implemented");
+	if ((r = sys_page_alloc(0, (void *) PFTEMP, PTE_U | PTE_P | PTE_W)) != 0){
+		panic("pgfault: sys_page_alloc: %e", r);
+	}
+
+	addr = ROUNDDOWN(addr, PGSIZE);
+	memmove((void *)PFTEMP, addr, PGSIZE);
+	
+	if ((r = sys_page_map(0, (void *) PFTEMP, 0, addr, PTE_U | PTE_P | PTE_W)) != 0){
+		panic("pgfault: sys_page_map: %e", r);
+	}
+
+        if ((r = sys_page_unmap(0, PFTEMP)) != 0) {
+                panic("pgfault: sys_page_unmap: %e", r);
+        }
+	
 }
 
 //
@@ -54,24 +79,9 @@ duppage(envid_t envid, unsigned pn)
 	int r;
 
 	// LAB 4: Your code here.
-	//panic("duppage not implemented");
+        panic("duppage not implemented");
 
-	void *addr = (void*) (pn*PGSIZE);
-
-	if ((uvpt[pn] & PTE_W) || (uvpt[pn] & PTE_COW)) {
-
-		if ((r = sys_page_map(0, addr, envid, addr, PTE_U | PTE_P | PTE_COW))) {
-			panic("duppage: %e", r);
-                }
-
-		if ((r = sys_page_map(0, addr, 0, addr, PTE_U | PTE_P | PTE_COW))) {
-			panic("duppage: %e", r);
-                }
-	} else {
-                sys_page_map(0, addr, envid, addr, PTE_U | PTE_P);
-        }
-
-	return 0;
+       
 }
 
 static int
@@ -79,57 +89,30 @@ dup_or_share(envid_t dstenv, void *va, int perm)
 {
 	int error;
 
+        
         //direccion de I/O , hacer return, no hay que mapear de nuevo
-        if ((perm & PTE_PCD) || (PTE_PWT & perm ) || (PTE_MAPPED & perm )) {     
+        if ((perm & PTE_PCD) || (PTE_PWT & perm )) {     
                 return 0;
         }
-
-        perm = perm & PTE_SYSCALL;
-
-
-        //si es PTE_SHARE
-        if ((perm & PTE_SHARE)) {
-                error = sys_page_map(0, va, dstenv, va, PTE_SYSCALL);
-		if (error) {
-			panic("dup_or_share - sys_page_map without W perm: %e", error);		
-		}
-                return 0;
-        } 
         
+        //PTE_SHARE o solo lectura
+        if (!(perm & (PTE_W | PTE_COW)) || (perm & PTE_SHARE)) {
+                if ((error = sys_page_map(0, va, dstenv, va, perm & PTE_SYSCALL))) {
+                    panic("dup_or_share: sys_page_map: %e", error); 
+                }  
+        } else {
+                //escritura
+                if ((error = sys_page_map(0, va, dstenv, va, PTE_P | PTE_U | PTE_COW))){
+                        panic("dup_or_share: sys_page_map: %e", error);
+                }
 
-        //si es escritura
-	if ((perm & PTE_W)) {
-                
-                //COPIA DEL DUPPAGE DE DUMBFORK
-
-                error = sys_page_alloc(dstenv, va, perm);
-		if (error) 
-			panic("dup_or_share - sys_page_alloc: %e", error);
-                
-                //dir aux para la pag, dumbfork usaba UTEMP
-                //pero en este fork tambien se copia esa pag, no se tendria que usar (creo)
-                //uso la dir 0 (hay otra mejor?)
-                int aux_addr = 0;
-
-                error = sys_page_map(dstenv, va, 0, (void*) aux_addr, perm);
-		if (error)
-			panic("dup_or_share - sys_page_map with W perm: %e", error);
-
-
-                memmove((void*) aux_addr, va, PGSIZE);
-	        if ((error = sys_page_unmap(0, (void*) aux_addr)) < 0)
-		        panic("dup_or_share - sys_page_unmap: %e", error);
-
-
-	} else { //si es solo lectura
-                error = sys_page_map(0, va, dstenv, va, perm);
-		if (error) {
-			panic("dup_or_share - sys_page_map without W perm: %e", error);		
-		}
-	}
-
-	return 0;
+                if ((error = sys_page_map(0, va, 0, va, PTE_P | PTE_U | PTE_COW))){
+                        panic("dup_or_share: sys_page_map: %e", error);        
+                }
+        }
+        return 0;
 }
+
 
 envid_t
 fork_v0(void)
@@ -138,7 +121,7 @@ fork_v0(void)
 	uint8_t *addr;
 	int r;
 
-        //set_pgfault_handler(pgfault);
+        set_pgfault_handler(pgfault);
 
 	envid = sys_exofork();
 	if (envid < 0)
@@ -153,16 +136,21 @@ fork_v0(void)
 
     	        if ((uvpd[PDX(addr)] & PTE_P) && (uvpt[PGNUM(addr)] & PTE_P)
     			&& (uvpt[PGNUM(addr)] & PTE_U)) {
+                        if (addr == (uint8_t*) (UXSTACKTOP - PGSIZE)) continue; //user exception stack no se copia
 			dup_or_share(envid, addr, uvpt[PGNUM(addr)]);
     	        }
-        }
-
-        /*
+        }      
+        
+        //pag fault handler
         if (sys_env_set_pgfault_upcall(envid, thisenv->env_pgfault_upcall)){
                 panic("fork: cannot set pgfault upcall");
         }
-        */
 
+        //aloco pag para user exception stack
+        if (sys_page_alloc(envid, (void *)(UXSTACKTOP - PGSIZE), PTE_U|PTE_P|PTE_W)){
+		panic("fork: cannot alloc page for user exception stack");
+	}
+        
         if (sys_env_set_status(envid, ENV_RUNNABLE)) {
                 panic("fork: cannot set env status");
         }
@@ -192,7 +180,7 @@ fork(void)
 {
 	// LAB 4: Your code here.
 
-    return fork_v0();
+        return fork_v0();
 }
 
 // Challenge!
