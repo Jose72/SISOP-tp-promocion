@@ -63,19 +63,18 @@ alloc_block(void)
 
 	// LAB 5: Your code here.
 	//panic("alloc_block not implemented");
-        uint32_t i, j;
+        int i;
 
-        for (i = 0; i < super->s_nblocks/32; i++) {
-	        for (j = 0; j < 32; j++) {
-	                if (bitmap[i] & (1 << j)) {
-		                bitmap[i] &= (~(1 << j));
-		                flush_block(diskaddr((i * 32 | j)/BLKBITSIZE + 2));
-		                return (i * 32) | j;
-	                }
-	        }
-        }
+	for (i = 0; i < super->s_nblocks; i++) {
+		if (block_is_free(i)) {
+			bitmap[i / 32] &= ~(1 << (i % 32));
+                        flush_block((void*) (i * BLKSIZE + DISKMAP));
+			return i;
+		}
+	}
 
-	return -E_NO_DISK;
+        return -E_NO_DISK;
+
 }
 
 // Validate the file system bitmap.
